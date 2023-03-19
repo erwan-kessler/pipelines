@@ -129,7 +129,7 @@ pub struct Pipeline {
     id: PipelineId,
     next_id: Option<u8>,
     closed: bool,
-    message: BinaryHeap<Message>,
+    messages: BinaryHeap<Message>,
 }
 
 impl Hash for Pipeline {
@@ -158,17 +158,17 @@ pub struct Pipelines {
 }
 
 impl Pipelines {
-    pub fn display<W:std::fmt::Write>(self, writer: &mut W) -> std::fmt::Result {
-        let mut keys = self.inner.keys().collect::<Vec<_>>();
+    pub fn display<W:std::fmt::Write>(mut self, writer: &mut W) -> std::fmt::Result {
+        let mut keys = self.inner.keys().cloned().collect::<Vec<_>>();
         keys.sort_unstable();
         for key in keys {
-            match self.inner.get(&key) {
+            match self.inner.remove(&key) {
                 None => {
                     error!("Pipelines hashmap was modified in between")
                 }
                 Some(pipeline) => {
                     writeln!(writer, "Pipeline:{}", pipeline.id)?;
-                    for msg in pipeline.message.clone().into_sorted_vec() {
+                    for msg in pipeline.messages.into_sorted_vec() {
                         writeln!(writer, "\t{}| {}", msg.id, msg.body)?;
                     }
                 }
@@ -206,7 +206,7 @@ impl Pipelines {
             }
         }
         match (msg.id, msg.encoding, msg.message).try_into() {
-            Ok(msg) => pipeline.message.push(msg),
+            Ok(msg) => pipeline.messages.push(msg),
             Err(e) => {
                 debug!("Message is not valid {e:?}");
             }
@@ -239,31 +239,34 @@ fn main() {
             }
         }
     }
+    println!("{}",pipelines);
 }
 
+#[cfg(test)]
+mod tests{
 
-#[test_log::test]
-fn test() {
-    let lines = r#"2 1 1 4F4B 5
+    #[test_log::test]
+    fn test() {
+        let lines = r#"2 1 1 4F4B 5
 1 0 0 some_text 1
 1 1 0 another_text 3
 2 5 1 4F4B -1
 "#;
-    let mut pipelines = Pipelines::new(Default::default());
-    for line in lines.lines() {
-        match ParsedMessage::parse(line) {
-            Ok(msg) => { pipelines.insert_message(msg); }
-            Err(err) => {
-                debug!("Could not parse line `{line}` with err: {err:?}");
+        let mut pipelines = Pipelines::new(Default::default());
+        for line in lines.lines() {
+            match ParsedMessage::parse(line) {
+                Ok(msg) => { pipelines.insert_message(msg); }
+                Err(err) => {
+                    debug!("Could not parse line `{line}` with err: {err:?}");
+                }
             }
         }
+        println!("{}", pipelines);
     }
-    println!("{}", pipelines);
-}
 
-#[test_log::test]
-fn test_simple() {
-    let lines = r#"3 1 0 message_31 -1
+    #[test_log::test]
+    fn test_simple() {
+        let lines = r#"3 1 0 message_31 -1
       1 0 0 message_10 1 This text should be ignored
 1 3 0 message_13 -1
 err
@@ -278,18 +281,20 @@ err
 1 0 0 message_10_2 1
 5 11 0 message_510_2 -1
 "#;
-    let mut pipelines = Pipelines::new(PipelinesConfig{
-        discard_invalid_next_id:false,
-    });
-    for line in lines.lines() {
-        match ParsedMessage::parse(line) {
-            Ok(msg) => { pipelines.insert_message(msg); }
-            Err(err) => {
-                debug!("Could not parse line `{line}` with err: {err:?}");
+        let mut pipelines = Pipelines::new(PipelinesConfig{
+            discard_invalid_next_id:false,
+        });
+        for line in lines.lines() {
+            match ParsedMessage::parse(line) {
+                Ok(msg) => { pipelines.insert_message(msg); }
+                Err(err) => {
+                    debug!("Could not parse line `{line}` with err: {err:?}");
+                }
             }
         }
+        let mut s=String::new();
+        pipelines.display(&mut s).expect("works");
+        println!("{}",s);
     }
-    let mut s=String::new();
-    pipelines.display(&mut s).expect("works");
-    println!("{}",s);
+
 }

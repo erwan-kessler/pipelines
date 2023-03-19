@@ -1,0 +1,6 @@
+Could not parse line `      1 0 0 message_10 1 This text should be ignored` with err: Invalid uint8_t value: 
+Could not parse line `err` with err: Missing fields
+Could not parse line `12 8 m...` with err: Missing fields
+The following message was ignored because the pipeline was closed: 1
+The following message was ignored because the pipeline was closed: 2
+The following message was ignored because the pipeline was closed: 0
